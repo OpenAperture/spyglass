@@ -47,6 +47,26 @@ func main() {
 			},
 		},
 		{
+			Name:  "deploy_ecs",
+			Usage: "build and deploy a docker repository",
+			Action: func(c *cli.Context) {
+				validate(c)
+				fmt.Printf("Sending deploy request for:\n Project: %s\n Environment: %s\n", c.Args().First(), c.String("environment"))
+				project := deploy_ecs(openaperture.NewProject(c.Args().First(), c.String("environment"), c.String("commit"), c.GlobalString("server"),
+					c.String("build-exchange"), c.String("deploy-exchange"), c.Bool("force")))
+				if c.GlobalBool("follow") {
+					checkStatus(project)
+				}
+			},
+			Flags: []cli.Flag{
+				environmentFlag,
+				commitHashFlag,
+				cli.StringFlag{Name: "build-exchange", Usage: "Set the build exchange id"},
+				cli.StringFlag{Name: "deploy-exchange", Usage: "Set the deploy exchange id"},
+				cli.BoolFlag{Name: "force", Usage: "Force a docker build"},
+			},
+		},
+		{
 			Name:  "configure",
 			Usage: "set configuration options",
 			Action: func(c *cli.Context) {
@@ -115,6 +135,25 @@ func validate(c *cli.Context) {
 
 func deploy(project *openaperture.Project) *openaperture.Project {
 	operations := []string{"build", "deploy"}
+	token, err := openaperture.GetAuth()
+	if err != nil {
+		panic(err.Error())
+	}
+	resp, err := project.CreateWorkflow(token, operations)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("Workflow created: %s\n", resp.Location)
+	err = project.ExecuteWorkflow(token, resp.Location)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println("Successfully sent deploy request")
+	return project
+}
+
+func deploy_ecs(project *openaperture.Project) *openaperture.Project {
+	operations := []string{"build", "deploy_ecs"}
 	token, err := openaperture.GetAuth()
 	if err != nil {
 		panic(err.Error())
